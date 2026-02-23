@@ -45,7 +45,7 @@ function AdminDashboard() {
         if (!title || !author) return;
         setAdding(true);
         try {
-            await axios.post("http://localhost:9999/api/admin/books", { title, author });
+            await axios.post("http://localhost:9999/api/admin/books", { title, author, available: true });
             setTitle("");
             setAuthor("");
             loadBooks();
