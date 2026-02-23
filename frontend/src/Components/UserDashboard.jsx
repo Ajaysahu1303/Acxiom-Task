@@ -6,7 +6,7 @@ function UserDashboard() {
     const user = JSON.parse(localStorage.getItem("user") || "null");
     if (!user || user.role !== "USER") {
         window.location.replace("/");
-        return null; // Stop render fully during redirect
+        return null;
     }
 
     const [availableBooks, setAvailableBooks] = useState([]);

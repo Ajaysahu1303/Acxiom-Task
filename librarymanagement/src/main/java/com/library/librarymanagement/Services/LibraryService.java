@@ -30,8 +30,6 @@ public class LibraryService {
             if (today.isAfter(dueDate)) {
                 long daysOverdue = ChronoUnit.DAYS.between(dueDate, today);
                 ib.setFine((int) (daysOverdue * 5));
-                // Only save if it actually changes to avoid unnecessary DB hits?
-                // Save is handled here simply. We can always save it.
                 issuedRepo.save(ib);
             }
         }
@@ -49,7 +47,6 @@ public class LibraryService {
         IssuedBook ib = issuedRepo.findById(issuedId).orElseThrow();
         if (ib.getReturnDate() == null) {
             ib.setReturnDate(LocalDate.now());
-            // Calculate one last time precisely on return date
             LocalDate dueDate = ib.getIssueDate().plusDays(7);
             if (ib.getReturnDate().isAfter(dueDate)) {
                 long daysOverdue = ChronoUnit.DAYS.between(dueDate, ib.getReturnDate());

@@ -14,15 +14,12 @@ function AdminDashboard() {
 
     const [allStudents, setAllStudents] = useState([]);
 
-    // Student Search / Focus State
     const [studentQuery, setStudentQuery] = useState("");
     const [student, setStudent] = useState(null);
     const [studentIssuedBooks, setStudentIssuedBooks] = useState([]);
 
-    // Issue Book Selection state
     const [selectedBookToIssue, setSelectedBookToIssue] = useState("");
 
-    // Add Book State
     const [title, setTitle] = useState("");
     const [author, setAuthor] = useState("");
     const [adding, setAdding] = useState(false);
@@ -38,7 +35,6 @@ function AdminDashboard() {
     const loadUsers = () => {
         axios.get("http://localhost:9999/api/admin/users")
             .then(res => {
-                // Filter out ADMINs if you want, but simply keeping users
                 setAllStudents(res.data.filter(u => u.role === "USER"));
             })
             .catch(err => console.error("Failed to load users", err));
@@ -159,7 +155,6 @@ function AdminDashboard() {
     const returned = studentIssuedBooks.filter(ib => ib.issuedBook.returnDate);
     const availableBooksForSelect = books.filter(b => b.available !== false);
 
-    // CSS styling constants
     const cardStyle = { background: "#fff", padding: "20px", borderRadius: "8px", border: "1px solid #e1e4e8", marginBottom: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
     const inputStyle = { padding: "10px", fontSize: "14px", borderRadius: "4px", border: "1px solid #d1d5da", width: "100%", boxSizing: "border-box" };
     const btnPrimary = { background: "#0366d6", color: "#fff", border: "none", padding: "10px 15px", borderRadius: "4px", cursor: "pointer", fontWeight: "600" };
@@ -169,7 +164,6 @@ function AdminDashboard() {
     return (
         <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px", fontFamily: "system-ui, -apple-system, sans-serif", color: "#24292e" }}>
 
-            {/* Header Section */}
             <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e1e4e8", paddingBottom: "15px", marginBottom: "25px" }}>
                 <div>
                     <h2 style={{ margin: "0 0 5px 0", color: "#24292e" }}>Administrator Workspace</h2>
@@ -180,7 +174,6 @@ function AdminDashboard() {
 
             <div style={{ display: "flex", gap: "25px", flexWrap: "wrap", alignItems: "flex-start" }}>
 
-                {/* LEFT COLUMN - Student List & Library Operations */}
                 <div style={{ flex: "1 1 400px" }}>
 
                     <div style={cardStyle}>
@@ -220,7 +213,6 @@ function AdminDashboard() {
                         </div>
                     </div>
 
-                    {/* Quick Add Book Utility Form retained for Admin Convenience */}
                     <div style={cardStyle}>
                         <h4 style={{ marginTop: 0, marginBottom: "12px", fontSize: "15px", color: "#586069" }}>Catalog Tool: Add New Book</h4>
                         <form onSubmit={addBook} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -236,7 +228,6 @@ function AdminDashboard() {
 
                 </div>
 
-                {/* RIGHT COLUMN - Student Detail Profile & Issue Center */}
                 <div style={{ flex: "2 1 600px" }}>
                     <div style={cardStyle}>
 
@@ -247,7 +238,6 @@ function AdminDashboard() {
                             </div>
                         ) : (
                             <>
-                                {/* Student Profile Overview */}
                                 <div style={{ background: "#f1f8ff", padding: "20px", borderRadius: "6px", border: "1px solid #c8e1ff", marginBottom: "25px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                     <div>
                                         <h2 style={{ margin: "0 0 5px 0", color: "#0366d6" }}>{student.name}</h2>
@@ -257,7 +247,6 @@ function AdminDashboard() {
                                         </div>
                                     </div>
 
-                                    {/* Issue Book Form Explicitly Here in Profile Mode */}
                                     <form onSubmit={issueBook} style={{ display: "flex", gap: "10px", background: "#fff", padding: "10px", borderRadius: "6px", border: "1px solid #e1e4e8", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
                                         <select
                                             style={{ ...inputStyle, width: "220px" }}
@@ -275,7 +264,6 @@ function AdminDashboard() {
                                     </form>
                                 </div>
 
-                                {/* Active Issued Books */}
                                 <h3 style={{ margin: "0 0 15px 0", borderBottom: "1px solid #eaecef", paddingBottom: "10px", color: "#24292e" }}>
                                     Currently Issued ({activeIssued.length})
                                 </h3>
@@ -311,7 +299,6 @@ function AdminDashboard() {
                                     </div>
                                 )}
 
-                                {/* Returned History */}
                                 <h3 style={{ margin: "0 0 15px 0", borderBottom: "1px solid #eaecef", paddingBottom: "10px", color: "#24292e" }}>
                                     Return History ({returned.length})
                                 </h3>
