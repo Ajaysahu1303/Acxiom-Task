@@ -67,3 +67,53 @@ The project focuses on clean role-based access, realistic admin workflows, and s
 ---
 
 ## Project Structure
+
+Acxiom-Task/
+│
+├── frontend/ # React (Vite) frontend
+│ ├── src/
+│ │ ├── components/
+│ │ ├── App.jsx
+│ │ └── main.jsx
+│
+├── backend/ # Spring Boot backend
+│ ├── src/main/java/
+│ ├── src/main/resources/
+│ └── application.properties
+│
+└── README.md
+
+
+---
+
+## How to Run the Project
+
+### Backend Setup
+1. Create MySQL database:
+   ```sql
+   CREATE DATABASE librarydb;
+
+spring.datasource.url=jdbc:mysql://localhost:3306/librarydb
+spring.datasource.username=YOUR_USERNAME
+spring.datasource.password=YOUR_PASSWORD
+
+spring.jpa.hibernate.ddl-auto=update
+server.port=9999
+
+Frontend Setup
+
+Navigate to frontend folder:
+
+cd frontend
+
+Install dependencies:
+
+npm install
+
+Start development server:
+
+npm run dev
+
+Open in browser:
+
+http://localhost:5173
