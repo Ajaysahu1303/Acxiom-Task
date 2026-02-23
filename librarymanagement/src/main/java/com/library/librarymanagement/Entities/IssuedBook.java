@@ -24,6 +24,7 @@ public class IssuedBook {
     private Long userId;
     private Long bookId;
     private LocalDate issueDate;
+    private LocalDate dueDate;
     private LocalDate returnDate;
 
     private Integer fine = 0;

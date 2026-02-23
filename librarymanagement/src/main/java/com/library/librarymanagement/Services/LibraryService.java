@@ -40,7 +40,6 @@ public class LibraryService {
     public List<IssuedBookDTO> getIssuedBooksWithDetails(Long userId) {
         List<IssuedBook> issued = issuedRepo.findByUserId(userId);
         return issued.stream().map(ib -> {
-            calculateFine(ib);
             Book b = bookRepo.findById(ib.getBookId()).orElse(null);
             return new IssuedBookDTO(ib, b);
         }).collect(Collectors.toList());

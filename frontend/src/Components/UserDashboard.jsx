@@ -3,16 +3,20 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 function UserDashboard() {
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    if (!user || user.role !== "USER") {
+        window.location.replace("/");
+        return null; // Stop render fully during redirect
+    }
+
     const [availableBooks, setAvailableBooks] = useState([]);
     const [issuedBooks, setIssuedBooks] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [loading, setLoading] = useState(true);
 
     const navigate = useNavigate();
-    const user = JSON.parse(localStorage.getItem("user"));
 
     useEffect(() => {
-        if (!user) return;
         setLoading(true);
         Promise.all([
             axios.get("http://localhost:9999/api/user/books"),
@@ -30,7 +34,8 @@ function UserDashboard() {
     const logout = () => {
         if (window.confirm("Are you sure you want to logout?")) {
             localStorage.removeItem("user");
-            navigate("/", { replace: true });
+            sessionStorage.clear();
+            window.location.replace("/");
         }
     };
 

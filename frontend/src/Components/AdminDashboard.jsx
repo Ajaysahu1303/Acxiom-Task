@@ -3,40 +3,57 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 function AdminDashboard() {
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    if (!user || user.role !== "ADMIN") {
+        window.location.replace("/");
+        return null;
+    }
+
     const [books, setBooks] = useState([]);
     const [searchBookTerm, setSearchBookTerm] = useState("");
-    const [title, setTitle] = useState("");
-    const [author, setAuthor] = useState("");
 
-    // Student Search State
+    const [allStudents, setAllStudents] = useState([]);
+
+    // Student Search / Focus State
     const [studentQuery, setStudentQuery] = useState("");
     const [student, setStudent] = useState(null);
     const [studentIssuedBooks, setStudentIssuedBooks] = useState([]);
-    const [searchStudentError, setSearchStudentError] = useState("");
 
-    // Loading states
-    const [loadingBooks, setLoadingBooks] = useState(true);
+    // Issue Book Selection state
+    const [selectedBookToIssue, setSelectedBookToIssue] = useState("");
+
+    // Add Book State
+    const [title, setTitle] = useState("");
+    const [author, setAuthor] = useState("");
     const [adding, setAdding] = useState(false);
 
     const navigate = useNavigate();
-    const user = JSON.parse(localStorage.getItem("user"));
 
     const loadBooks = () => {
-        setLoadingBooks(true);
         axios.get("http://localhost:9999/api/admin/books")
             .then(res => setBooks(res.data))
-            .catch(err => console.error("Failed to load books", err))
-            .finally(() => setLoadingBooks(false));
+            .catch(err => console.error("Failed to load books", err));
     };
+
+    const loadUsers = () => {
+        axios.get("http://localhost:9999/api/admin/users")
+            .then(res => {
+                // Filter out ADMINs if you want, but simply keeping users
+                setAllStudents(res.data.filter(u => u.role === "USER"));
+            })
+            .catch(err => console.error("Failed to load users", err));
+    }
 
     useEffect(() => {
         loadBooks();
+        loadUsers();
     }, []);
 
     const logout = () => {
         if (window.confirm("Are you sure you want to logout?")) {
             localStorage.removeItem("user");
-            navigate("/", { replace: true });
+            sessionStorage.clear();
+            window.location.replace("/");
         }
     };
 
@@ -49,30 +66,13 @@ function AdminDashboard() {
             setTitle("");
             setAuthor("");
             loadBooks();
+            alert("Book added to Catalog!");
         } catch (err) {
             alert("Failed to add book.");
         } finally {
             setAdding(false);
         }
     };
-
-    const searchStudent = async (e) => {
-        e.preventDefault();
-        setSearchStudentError("");
-        try {
-            const res = await axios.get(`http://localhost:9999/api/admin/user?query=${studentQuery}`);
-            if (res.data && res.data.id) {
-                setStudent(res.data);
-                loadStudentIssued(res.data.id);
-            } else {
-                setStudent(null);
-                setSearchStudentError("No student found with that ID or Email.");
-            }
-        } catch (err) {
-            console.error(err);
-            setSearchStudentError("Error searching student.");
-        }
-    }
 
     const loadStudentIssued = async (userId) => {
         try {
@@ -83,24 +83,32 @@ function AdminDashboard() {
         }
     };
 
-    const issueBook = async (bookId) => {
-        if (!student) return alert("Please select a student first in the Student Management section!");
+    const selectStudent = (u) => {
+        setStudent(u);
+        setSelectedBookToIssue("");
+        loadStudentIssued(u.id);
+    };
+
+    const issueBook = async (e) => {
+        e.preventDefault();
+        if (!student || !selectedBookToIssue) return;
 
         const issueDate = new Date().toISOString().split('T')[0];
         const dueD = new Date();
         dueD.setDate(dueD.getDate() + 7);
         const dueDate = dueD.toISOString().split('T')[0];
 
-        if (!window.confirm(`Issue this book to ${student.name}?\n\nIssue Date: ${issueDate}\nDue Date: ${dueDate}`)) return;
+        if (!window.confirm(`Issue book ID (${selectedBookToIssue}) to ${student.name}?\n\nIssue Date: ${issueDate}\nDue Date: ${dueDate}`)) return;
 
         try {
-            await axios.post(`http://localhost:9999/api/admin/issue?userId=${student.id}&bookId=${bookId}`);
+            await axios.post(`http://localhost:9999/api/admin/issue?email=${encodeURIComponent(student.email)}&bookId=${selectedBookToIssue}`);
             loadBooks();
             loadStudentIssued(student.id);
+            setSelectedBookToIssue("");
             alert("Book issued successfully.");
         } catch (err) {
             console.error(err);
-            alert("Failed to issue book");
+            alert(err.response?.data || "Failed to issue book");
         }
     }
 
@@ -141,15 +149,17 @@ function AdminDashboard() {
         return d.toISOString().split('T')[0];
     };
 
-    const filteredBooks = books.filter(b =>
-    (b.title?.toLowerCase().includes(searchBookTerm.toLowerCase()) ||
-        b.author?.toLowerCase().includes(searchBookTerm.toLowerCase()))
+    const filteredStudents = allStudents.filter(s =>
+    (s.name?.toLowerCase().includes(studentQuery.toLowerCase()) ||
+        s.email?.toLowerCase().includes(studentQuery.toLowerCase()) ||
+        s.id.toString().includes(studentQuery))
     );
 
     const activeIssued = studentIssuedBooks.filter(ib => !ib.issuedBook.returnDate);
     const returned = studentIssuedBooks.filter(ib => ib.issuedBook.returnDate);
+    const availableBooksForSelect = books.filter(b => b.available !== false);
 
-    // CSS styling constants for a clean, human-written look without external UI libraries
+    // CSS styling constants
     const cardStyle = { background: "#fff", padding: "20px", borderRadius: "8px", border: "1px solid #e1e4e8", marginBottom: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
     const inputStyle = { padding: "10px", fontSize: "14px", borderRadius: "4px", border: "1px solid #d1d5da", width: "100%", boxSizing: "border-box" };
     const btnPrimary = { background: "#0366d6", color: "#fff", border: "none", padding: "10px 15px", borderRadius: "4px", cursor: "pointer", fontWeight: "600" };
@@ -162,142 +172,137 @@ function AdminDashboard() {
             {/* Header Section */}
             <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e1e4e8", paddingBottom: "15px", marginBottom: "25px" }}>
                 <div>
-                    <h2 style={{ margin: "0 0 5px 0", color: "#24292e" }}>Administrator Dashboard</h2>
-                    <p style={{ margin: 0, color: "#586069", fontSize: "14px" }}>Welcome back, <strong>{user?.name}</strong></p>
+                    <h2 style={{ margin: "0 0 5px 0", color: "#24292e" }}>Administrator Workspace</h2>
+                    <p style={{ margin: 0, color: "#586069", fontSize: "14px" }}>System Management Dashboard - <strong>{user?.name}</strong></p>
                 </div>
                 <button onClick={logout} style={btnDanger}>Logout</button>
             </header>
 
             <div style={{ display: "flex", gap: "25px", flexWrap: "wrap", alignItems: "flex-start" }}>
 
-                {/* Book Management Section */}
-                <div style={{ flex: "1 1 500px" }}>
+                {/* LEFT COLUMN - Student List & Library Operations */}
+                <div style={{ flex: "1 1 400px" }}>
+
                     <div style={cardStyle}>
-                        <h3 style={{ marginTop: 0, borderBottom: "1px solid #eaecef", paddingBottom: "10px", color: "#24292e" }}>Book Management</h3>
+                        <h3 style={{ marginTop: 0, borderBottom: "1px solid #eaecef", paddingBottom: "10px", color: "#24292e" }}>Student Directory</h3>
 
-                        {/* Add Book */}
-                        <div style={{ background: "#f6f8fa", padding: "15px", borderRadius: "6px", marginBottom: "20px", border: "1px solid #e1e4e8" }}>
-                            <h4 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>Add New Book</h4>
-                            <form onSubmit={addBook} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                                <div style={{ display: "flex", gap: "10px" }}>
-                                    <input
-                                        placeholder="Enter book title"
-                                        value={title}
-                                        onChange={(e) => setTitle(e.target.value)}
-                                        style={inputStyle}
-                                    />
-                                    <input
-                                        placeholder="Enter author name"
-                                        value={author}
-                                        onChange={(e) => setAuthor(e.target.value)}
-                                        style={inputStyle}
-                                    />
-                                </div>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                    <small style={{ color: (!title || !author) ? "#cb2431" : "transparent" }}>
-                                        * Please fill in both fields to add a book.
-                                    </small>
-                                    <button type="submit" style={{ ...btnPrimary, opacity: (!title || !author || adding) ? 0.6 : 1 }} disabled={adding || !title || !author}>
-                                        {adding ? "Adding..." : "Add Book"}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-
-                        {/* Search Book */}
                         <div style={{ marginBottom: "15px" }}>
                             <input
                                 type="text"
-                                placeholder="Search by title or author"
-                                value={searchBookTerm}
-                                onChange={(e) => setSearchBookTerm(e.target.value)}
+                                placeholder="Search students by Name, ID, or Email"
+                                value={studentQuery}
+                                onChange={(e) => setStudentQuery(e.target.value)}
                                 style={inputStyle}
                             />
                         </div>
 
-                        {/* Book List */}
-                        {loadingBooks ? <p style={{ color: "#586069" }}>Loading catalog...</p> : (
-                            <div style={{ maxHeight: "400px", overflowY: "auto", border: "1px solid #e1e4e8", borderRadius: "6px" }}>
-                                {filteredBooks.length === 0 ? (
-                                    <p style={{ padding: "15px", color: "#586069", margin: 0, textAlign: "center" }}>No books found matching criteria.</p>
-                                ) : (
-                                    filteredBooks.map(b => (
-                                        <div key={b.id} style={{ padding: "12px 15px", borderBottom: "1px solid #e1e4e8", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff" }}>
-                                            <div>
-                                                <strong style={{ fontSize: "15px", display: "block", marginBottom: "4px" }}>{b.title}</strong>
-                                                <span style={{ color: "#586069", fontSize: "13px" }}>by {b.author}</span>
-                                            </div>
-                                            <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end" }}>
-                                                <span style={{
-                                                    padding: "3px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: "600",
-                                                    background: b.available !== false ? "#dcffe4" : "#ffeef0",
-                                                    color: b.available !== false ? "#1a7f37" : "#cb2431"
-                                                }}>
-                                                    {b.available !== false ? "AVAILABLE" : "ISSUED"}
-                                                </span>
-                                                {b.available !== false && (
-                                                    <button onClick={() => issueBook(b.id)} style={{ ...btnPrimary, padding: "5px 10px", fontSize: "12px", background: "#0366d6" }}>
-                                                        Issue Book
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        )}
+                        <div style={{ maxHeight: "350px", overflowY: "auto", border: "1px solid #e1e4e8", borderRadius: "6px", background: "#f6f8fa" }}>
+                            {filteredStudents.length === 0 ? (
+                                <p style={{ padding: "15px", color: "#586069", margin: 0, textAlign: "center" }}>No students found.</p>
+                            ) : (
+                                filteredStudents.map(s => (
+                                    <div
+                                        key={s.id}
+                                        onClick={() => selectStudent(s)}
+                                        style={{
+                                            padding: "12px 15px",
+                                            borderBottom: "1px solid #e1e4e8",
+                                            cursor: "pointer",
+                                            background: student?.id === s.id ? "#0366d6" : "#fff",
+                                            color: student?.id === s.id ? "#fff" : "#24292e"
+                                        }}
+                                    >
+                                        <strong style={{ fontSize: "15px", display: "block" }}>{s.name}</strong>
+                                        <span style={{ fontSize: "13px", color: student?.id === s.id ? "#e1e4e8" : "#586069" }}>{s.email} | ID: {s.id}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
+
+                    {/* Quick Add Book Utility Form retained for Admin Convenience */}
+                    <div style={cardStyle}>
+                        <h4 style={{ marginTop: 0, marginBottom: "12px", fontSize: "15px", color: "#586069" }}>Catalog Tool: Add New Book</h4>
+                        <form onSubmit={addBook} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                            <div style={{ display: "flex", gap: "10px" }}>
+                                <input placeholder="Book title" value={title} onChange={(e) => setTitle(e.target.value)} style={inputStyle} />
+                                <input placeholder="Author name" value={author} onChange={(e) => setAuthor(e.target.value)} style={inputStyle} />
+                            </div>
+                            <button type="submit" style={{ ...btnSuccess, padding: "10px", opacity: (!title || !author || adding) ? 0.6 : 1 }} disabled={adding || !title || !author}>
+                                {adding ? "Adding..." : "+ Quick Add"}
+                            </button>
+                        </form>
+                    </div>
+
                 </div>
 
-                {/* Student Management Section */}
-                <div style={{ flex: "1 1 500px" }}>
+                {/* RIGHT COLUMN - Student Detail Profile & Issue Center */}
+                <div style={{ flex: "2 1 600px" }}>
                     <div style={cardStyle}>
-                        <h3 style={{ marginTop: 0, borderBottom: "1px solid #eaecef", paddingBottom: "10px", color: "#24292e" }}>Student Management</h3>
 
-                        {/* Student Search */}
-                        <form onSubmit={searchStudent} style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
-                            <input
-                                type="text"
-                                placeholder="Search student by User ID or Email"
-                                value={studentQuery}
-                                onChange={(e) => setStudentQuery(e.target.value)}
-                                style={inputStyle}
-                                required
-                            />
-                            <button type="submit" style={{ ...btnPrimary, background: "#28a745" }}>Search</button>
-                        </form>
-                        {searchStudentError && <p style={{ color: "#cb2431", margin: "0 0 15px 0", fontSize: "14px" }}>{searchStudentError}</p>}
-
-                        {student && (
+                        {!student ? (
+                            <div style={{ textAlign: "center", padding: "50px 20px", color: "#586069" }}>
+                                <h3 style={{ margin: "0 0 10px 0" }}>No Student Selected</h3>
+                                <p style={{ margin: 0 }}>Please select a student from the directory on the left to handle book issues, returns, and library fines.</p>
+                            </div>
+                        ) : (
                             <>
-                                {/* Student Profile */}
-                                <div style={{ background: "#f1f8ff", padding: "15px", borderRadius: "6px", border: "1px solid #c8e1ff", marginBottom: "20px" }}>
-                                    <h4 style={{ margin: "0 0 8px 0", color: "#0366d6" }}>{student.name}</h4>
-                                    <div style={{ fontSize: "14px", color: "#24292e", display: "flex", gap: "20px" }}>
-                                        <span><strong>Email:</strong> {student.email}</span>
-                                        <span><strong>User ID:</strong> {student.id}</span>
+                                {/* Student Profile Overview */}
+                                <div style={{ background: "#f1f8ff", padding: "20px", borderRadius: "6px", border: "1px solid #c8e1ff", marginBottom: "25px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <div>
+                                        <h2 style={{ margin: "0 0 5px 0", color: "#0366d6" }}>{student.name}</h2>
+                                        <div style={{ fontSize: "14px", color: "#24292e", display: "flex", gap: "15px" }}>
+                                            <span><strong>Email:</strong> {student.email}</span>
+                                            <span><strong>System ID:</strong> {student.id}</span>
+                                        </div>
                                     </div>
+
+                                    {/* Issue Book Form Explicitly Here in Profile Mode */}
+                                    <form onSubmit={issueBook} style={{ display: "flex", gap: "10px", background: "#fff", padding: "10px", borderRadius: "6px", border: "1px solid #e1e4e8", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+                                        <select
+                                            style={{ ...inputStyle, width: "220px" }}
+                                            value={selectedBookToIssue}
+                                            onChange={(e) => setSelectedBookToIssue(e.target.value)}
+                                        >
+                                            <option value="">Select a Book to Issue...</option>
+                                            {availableBooksForSelect.map(b => (
+                                                <option key={b.id} value={b.id}>[ID: {b.id}] {b.title} - {b.author}</option>
+                                            ))}
+                                        </select>
+                                        <button type="submit" style={{ ...btnPrimary, background: "#0366d6" }} disabled={!selectedBookToIssue}>
+                                            Issue
+                                        </button>
+                                    </form>
                                 </div>
 
                                 {/* Active Issued Books */}
-                                <h4 style={{ margin: "0 0 10px 0", fontSize: "15px" }}>Issued Books ({activeIssued.length})</h4>
-                                {activeIssued.length === 0 ? <p style={{ color: "#586069", fontSize: "14px", marginBottom: "20px" }}>No books currently issued.</p> : (
-                                    <div style={{ marginBottom: "20px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                                <h3 style={{ margin: "0 0 15px 0", borderBottom: "1px solid #eaecef", paddingBottom: "10px", color: "#24292e" }}>
+                                    Currently Issued ({activeIssued.length})
+                                </h3>
+
+                                {activeIssued.length === 0 ? <p style={{ color: "#586069", fontSize: "14px", marginBottom: "30px" }}>No active books are checked out by this student.</p> : (
+                                    <div style={{ marginBottom: "30px", display: "flex", flexDirection: "column", gap: "15px" }}>
                                         {activeIssued.map(ib => (
                                             <div key={ib.issuedBook.id} style={{ padding: "15px", background: "#fff", border: "1px solid #e1e4e8", borderRadius: "6px", borderLeft: "4px solid #0366d6" }}>
-                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                                                    <strong style={{ fontSize: "15px" }}>{ib.book.title}</strong>
-                                                    <button onClick={() => returnBook(ib.issuedBook.id)} style={btnSuccess}>
-                                                        Mark as Returned
+
+                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                                                    <div>
+                                                        <strong style={{ fontSize: "16px", display: "block" }}>{ib.book.title}</strong>
+                                                        <span style={{ fontSize: "13px", color: "#586069" }}>by {ib.book.author}</span>
+                                                    </div>
+                                                    <button onClick={() => returnBook(ib.issuedBook.id)} style={{ ...btnSuccess, padding: "8px 16px" }}>
+                                                        Collect Return
                                                     </button>
                                                 </div>
-                                                <div style={{ fontSize: "13px", color: "#586069", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                                                    <span><strong>Issue Date:</strong> {ib.issuedBook.issueDate}</span>
+
+                                                <div style={{ fontSize: "14px", color: "#24292e", display: "grid", gridTemplateColumns: "1fr 1fr", background: "#f6f8fa", padding: "12px", borderRadius: "4px" }}>
+                                                    <span><strong>Issued:</strong> {ib.issuedBook.issueDate}</span>
                                                     <span><strong>Due Date:</strong> {getDueDate(ib.issuedBook.issueDate)}</span>
-                                                    <div style={{ gridColumn: "span 2", display: "flex", alignItems: "center", gap: "15px", marginTop: "4px", padding: "8px", background: "#f6f8fa", borderRadius: "4px" }}>
-                                                        <span style={{ fontSize: "14px" }}>Fine: <strong style={{ color: ib.issuedBook.fine > 0 ? "#cb2431" : "#24292e" }}>₹{ib.issuedBook.fine}</strong></span>
-                                                        <button onClick={() => editFine(ib.issuedBook.id, ib.issuedBook.fine)} style={{ background: "none", border: "none", color: "#0366d6", cursor: "pointer", textDecoration: "underline", padding: 0, fontSize: "13px" }}>
-                                                            Edit/Waive Fine
+
+                                                    <div style={{ gridColumn: "span 2", marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed #d1d5da", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                        <span style={{ fontSize: "15px" }}>Current Fine: <strong style={{ color: ib.issuedBook.fine > 0 ? "#cb2431" : "#28a745" }}>₹{ib.issuedBook.fine}</strong></span>
+                                                        <button onClick={() => editFine(ib.issuedBook.id, ib.issuedBook.fine)} style={{ background: "none", border: "none", color: "#0366d6", cursor: "pointer", textDecoration: "underline", padding: 0, fontWeight: "600" }}>
+                                                            Edit/Waive
                                                         </button>
                                                     </div>
                                                 </div>
@@ -307,17 +312,21 @@ function AdminDashboard() {
                                 )}
 
                                 {/* Returned History */}
-                                <h4 style={{ margin: "0 0 10px 0", fontSize: "15px" }}>Return History ({returned.length})</h4>
-                                {returned.length === 0 ? <p style={{ color: "#586069", fontSize: "14px" }}>No past returns.</p> : (
+                                <h3 style={{ margin: "0 0 15px 0", borderBottom: "1px solid #eaecef", paddingBottom: "10px", color: "#24292e" }}>
+                                    Return History ({returned.length})
+                                </h3>
+
+                                {returned.length === 0 ? <p style={{ color: "#586069", fontSize: "14px" }}>No past returns processed.</p> : (
                                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                                         {returned.map(ib => (
-                                            <div key={ib.issuedBook.id} style={{ padding: "12px 15px", background: "#fafbfc", border: "1px solid #e1e4e8", borderRadius: "6px" }}>
-                                                <strong style={{ fontSize: "14px", color: "#24292e" }}>{ib.book.title}</strong>
-                                                <div style={{ fontSize: "13px", color: "#586069", marginTop: "6px", display: "flex", justifyContent: "space-between" }}>
-                                                    <span>Returned: {ib.issuedBook.returnDate}</span>
-                                                    <span>Final Fine: ₹{ib.issuedBook.fine}
-                                                        <button onClick={() => editFine(ib.issuedBook.id, ib.issuedBook.fine)} style={{ background: "none", border: "none", color: "#0366d6", cursor: "pointer", textDecoration: "underline", marginLeft: "10px", padding: 0, fontSize: "12px" }}>Modify</button>
-                                                    </span>
+                                            <div key={ib.issuedBook.id} style={{ padding: "12px 15px", background: "#fafbfc", border: "1px solid #e1e4e8", borderRadius: "6px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <div>
+                                                    <strong style={{ fontSize: "14px", color: "#24292e", display: "block" }}>{ib.book.title}</strong>
+                                                    <span style={{ fontSize: "12px", color: "#586069" }}>Returned: {ib.issuedBook.returnDate}</span>
+                                                </div>
+                                                <div style={{ textAlign: "right" }}>
+                                                    <span style={{ fontSize: "13px", fontWeight: "600", display: "block", color: ib.issuedBook.fine > 0 ? "#cb2431" : "#586069" }}>Final Fine: ₹{ib.issuedBook.fine}</span>
+                                                    <button onClick={() => editFine(ib.issuedBook.id, ib.issuedBook.fine)} style={{ background: "none", border: "none", color: "#0366d6", cursor: "pointer", textDecoration: "underline", padding: 0, fontSize: "12px" }}>Modify Fine</button>
                                                 </div>
                                             </div>
                                         ))}

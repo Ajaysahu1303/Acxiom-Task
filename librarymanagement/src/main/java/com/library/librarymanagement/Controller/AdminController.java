@@ -39,19 +39,30 @@ public class AdminController {
     }
 
     @PostMapping("/issue")
-    public String issue(@RequestParam Long userId,
+    public org.springframework.http.ResponseEntity<String> issue(@RequestParam String email,
             @RequestParam Long bookId) {
-        Book b = bookRepo.findById(bookId).get();
+
+        com.library.librarymanagement.Entities.User u = userRepo.findByEmail(email);
+        if (u == null) {
+            return org.springframework.http.ResponseEntity.badRequest().body("Student with this email does not exist.");
+        }
+
+        Book b = bookRepo.findById(bookId).orElseThrow();
+        if (!b.isAvailable()) {
+            return org.springframework.http.ResponseEntity.badRequest()
+                    .body("This book is already issued and not available.");
+        }
         b.setAvailable(false);
         bookRepo.save(b);
 
         IssuedBook ib = new IssuedBook();
-        ib.setUserId(userId);
+        ib.setUserId(u.getId());
         ib.setBookId(bookId);
         ib.setIssueDate(LocalDate.now());
+        ib.setDueDate(LocalDate.now().plusDays(7));
         issuedRepo.save(ib);
 
-        return "Issued";
+        return org.springframework.http.ResponseEntity.ok("Issued");
     }
 
     @Autowired
@@ -76,6 +87,11 @@ public class AdminController {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    @GetMapping("/users")
+    public List<com.library.librarymanagement.Entities.User> allUsers() {
+        return userRepo.findAll();
     }
 
     @GetMapping("/issued/{userId}")
